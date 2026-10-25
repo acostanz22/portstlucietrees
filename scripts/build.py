@@ -1133,65 +1133,134 @@ def render_home_page():
     return shell("index.html", main, with_tally=True)
 
 
+def service_related_links(filename, limit=4):
+    items = []
+    for href, label in SERVICES:
+        if href == filename:
+            continue
+        items.append(f'<li><a href="/{href}">{escape(label)}</a></li>')
+        if len(items) >= limit:
+            break
+    return "".join(items)
+
+
+def service_gallery(photo_key, alt_fallback="Tree service work"):
+    primary = PAGE_PHOTOS.get(photo_key) or PAGE_PHOTOS["tree-removal.html"]
+    src, alt, width, height = primary
+    # Pair with a second job photo when available for a Valdosta-style gallery
+    secondary_keys = [
+        "stump-removal.html",
+        "storm-damage-clean-up.html",
+        "tree-care-prevention.html",
+        "brush-cleaning.html",
+    ]
+    second = None
+    for key in secondary_keys:
+        if key != photo_key and key in PAGE_PHOTOS:
+            second = PAGE_PHOTOS[key]
+            break
+    figures = [
+        f'<figure class="service-shot">{picture(src, alt or alt_fallback, width, height)}</figure>'
+    ]
+    if second:
+        s_src, s_alt, s_w, s_h = second
+        figures.append(
+            f'<figure class="service-shot">{picture(s_src, s_alt, s_w, s_h)}</figure>'
+        )
+    return f'<div class="service-gallery">{"".join(figures)}</div>'
+
+
 def render_service(filename):
     data = SERVICE_PAGES[filename]
-    h1 = data["h1"]
-    eyebrow = data.get("eyebrow") or data.get("h1", "Tree service")
+    raw_h1 = data["h1"]
+    if "Port St. Lucie" in raw_h1 or "Port St Lucie" in raw_h1:
+        h1 = raw_h1
+    else:
+        h1 = f"{raw_h1} in Port St. Lucie, FL"
+    eyebrow = data.get("eyebrow") or raw_h1
     lede = data.get("lede") or data.get("intro", "")
-    story_h2 = data.get("story_h2") or "About this service"
+    story_h2 = data.get("story_h2") or f"Where {raw_h1.lower()} fits local properties"
     story = data.get("story") or data.get("intro", "")
     when = "".join(f"<li>{escape(item)}</li>" for item in data["when"])
     process = "".join(f"<li>{escape(item)}</li>" for item in data["process"])
     costs = "".join(f"<li>{escape(item)}</li>" for item in data["costs"])
-    seo = data.get("seo_sections") or []
+    seo = data.get("seo_sections") or [
+        (
+            "What changes the job on Treasure Coast lots",
+            "Sandy soil, tight setbacks, pool cages, and summer wind all change how a tree comes down. A photo of the trunk, the house, and the access path is enough to start an honest estimate.",
+        ),
+        (
+            "What an estimate covers",
+            "The estimate should include the tree size, how close it is to structures, equipment needs, haul-away, and stump grinding if you want it. We do not publish a flat price list.",
+        ),
+    ]
     seo_html = "".join(
         f"<h2>{escape(title)}</h2><p>{escape(body)}</p>" for title, body in seo
     )
     photo_key = filename if filename in PAGE_PHOTOS else "tree-removal.html"
+    place_links = "".join(
+        f'<li><a href="/{href}">{escape(label)}</a></li>' if href else f"<li>{escape(label)}</li>"
+        for href, label in PLACES
+        if href
+    )
     main = f"""
 <main id="main">
+  <div class="crumb-bar">
+    <div class="wrap">{crumb_for(filename, raw_h1)}</div>
+  </div>
   <section class="hero slim-hero service-hero">
-    <div class="wrap hero-grid">
-      <div>
-        {crumb_for(filename, h1)}
-        <p class="eyebrow">{escape(eyebrow)}</p>
-        <h1>{escape(h1)}</h1>
-        <p class="lede">{escape(lede)}</p>
-        <div class="hero-actions">
-          <a class="btn btn-solid" href="#quote">Request an estimate</a>
-          <a class="btn btn-ghost btn-call" href="{TEL}">{PHONE_ICON}<strong>Call {PHONE}</strong></a>
+    <div class="wrap service-hero-inner">
+      <p class="eyebrow">{escape(eyebrow)}</p>
+      <h1>{escape(h1)}</h1>
+      <p class="lede">{escape(lede)}</p>
+      <div class="hero-actions">
+        <a class="btn btn-solid" href="/contact.html#quote">Request an estimate</a>
+        <a class="btn btn-ghost btn-call" href="{TEL}">{PHONE_ICON}<strong>Call {PHONE}</strong></a>
+      </div>
+    </div>
+  </section>
+  <section class="section service-body">
+    <div class="wrap service-layout">
+      <div class="service-main">
+        {service_gallery(photo_key)}
+        <div class="prose service-copy">
+          <h2>{escape(story_h2)}</h2>
+          <p>{escape(story)}</p>
+          <h2>When to call</h2>
+          <ul class="plain-list">{when}</ul>
+          <h2>How the work goes</h2>
+          <ol class="plain-list">{process}</ol>
+          <h2>What changes the price</h2>
+          <ul class="plain-list">{costs}</ul>
+          {seo_html}
+          <h2>Questions about this job</h2>
+          {faq_html(data["faqs"])}
         </div>
       </div>
-      {tally()}
+      <aside class="service-aside" aria-label="Estimate and related services">
+        <div class="side-card" id="quote">
+          <p class="side-kicker">Talk through the tree</p>
+          <p>Call or send the property details. We will tell you if the job is a removal, a trim, or something that should wait for the utility.</p>
+          <p class="side-phone">{phone_link("phone-link-lg")}</p>
+          <p class="side-hours">{OFFICE_HOURS}</p>
+          <p><a class="btn btn-solid" href="/contact.html#quote">Estimate form</a></p>
+        </div>
+        <div class="side-card side-card-muted">
+          <p class="side-kicker">Related</p>
+          <ul class="side-links">{service_related_links(filename)}</ul>
+        </div>
+      </aside>
     </div>
   </section>
-  <section class="section">
-    <div class="wrap story story-balanced">
-      {page_figure(photo_key)}
-      <div class="prose">
-        <h2>{escape(story_h2)}</h2>
-        <p>{escape(story)}</p>
-        <p>{phone_link("phone-link-lg")}</p>
-      </div>
+  <section class="section section-towns" style="padding-top:0">
+    <div class="wrap">
+      <h2>Towns we serve</h2>
+      <ul class="location-chips">{place_links}</ul>
+      <p><a class="details" href="/locations-port-st-lucie.html">Service area</a> · <a class="details" href="/contact.html#quote">Request an estimate</a> · <a class="details" href="/services.html">All services</a></p>
     </div>
   </section>
-  <section class="section" style="padding-top:0">
-    <div class="wrap prose service-copy">
-      <h2>When to call</h2>
-      <ul class="plain-list">{when}</ul>
-      <h2>How the work goes</h2>
-      <ol class="plain-list">{process}</ol>
-      <h2>What changes the price</h2>
-      <ul class="plain-list">{costs}</ul>
-      {seo_html}
-      <h2>Questions about this job</h2>
-      {faq_html(data["faqs"])}
-      <p><a class="btn btn-dark btn-call" href="{TEL}">{PHONE_ICON}<strong>Call {PHONE}</strong></a> <a class="btn btn-solid" href="/contact.html#quote">Request an estimate</a></p>
-    </div>
-  </section>
-  {map_section()}
 </main>"""
-    return shell(filename, main, with_tally=True)
+    return shell(filename, main)
 
 
 def render_location(filename):
@@ -1379,7 +1448,7 @@ def validate():
             problems.append(f"{name} missing h1")
         if text.count("<h1") != 1:
             problems.append(f"{name} h1 count {text.count('<h1')}")
-        if "google.com/maps/embed" not in text:
+        if name not in SERVICE_PAGES and "google.com/maps/embed" not in text:
             problems.append(f"{name} missing map")
         if "noindex" in text.lower():
             problems.append(f"{name} noindex")
